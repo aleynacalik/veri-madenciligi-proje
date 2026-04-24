@@ -1,0 +1,23 @@
+# Veri dosyaları (büyük, ayrıca paylaşılır)
+data/*.xlsx
+data/*.csv
+!data/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+
+# Ortam
+venv/
+env/
+.venv/
+
+# Çıktılar (sadece final olanlar commit edilsin)
+outputs/*.log
+outputs/temp_*
