@@ -21,16 +21,36 @@ cp ~/Downloads/arabam_ham_veri.xlsx data/
 
 ## 3. Gerekli kütüphaneleri kur
 
+### Seçenek A — Anaconda kullananlar (tavsiye edilen)
+
+Anaconda yüklüyse büyük ihtimalle tüm kütüphaneler zaten var. Yine de emin olmak için:
+
 ```bash
-pip install pandas numpy scikit-learn matplotlib seaborn openpyxl jupyter
+pip install -r requirements.txt
 ```
 
-Ya da Anaconda kullanıyorsan zaten hepsi var.
+### Seçenek B — Sanal ortam (venv) ile
 
-## 4. Notebook'u çalıştır
+Anaconda yoksa temiz bir sanal ortam kurmak daha iyi:
+
+**macOS / Linux:**
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+**Windows:**
+```bash
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+### Seçenek C — Doğrudan pip (hızlı ama karışık olabilir)
 
 ```bash
-jupyter notebook PROJE_TEK_DOSYA.ipynb
+pip install pandas numpy scikit-learn matplotlib seaborn openpyxl jupyter scipy
 ```
 
 Açılan notebook'ta üst menüden:
