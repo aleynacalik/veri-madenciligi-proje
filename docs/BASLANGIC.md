@@ -7,21 +7,18 @@ git clone <repo_url>
 cd veri-madenciligi-proje
 ```
 
-## 2. Ham veri dosyasını al
+## 2. Veri dosyasını al
 
-Proje liderinden `arabam_ham_veri.xlsx` dosyasını al (WhatsApp/Drive).
+`ARABAMVS.csv` dosyasını al.
 Bu dosyayı `data/` klasörünün içine koy.
 
-```bash
-# Örnek — senin dizininde dosya nereden gelirse
-cp ~/Downloads/arabam_ham_veri.xlsx data/
-```
 
-⚠️ **Ham veriyi repoya COMMIT ETME** — `.gitignore`'da zaten engelli.
+
+⚠️ **Veri dosyalarını repoya COMMIT ETME** — `.gitignore`'da `data/*.csv` zaten engelli.
 
 ## 3. Gerekli kütüphaneleri kur
 
-### Seçenek A — Anaconda kullananlar (tavsiye edilen)
+### Seçenek A — Anaconda kullananlar 
 
 Anaconda yüklüyse büyük ihtimalle tüm kütüphaneler zaten var. Yine de emin olmak için:
 
@@ -47,25 +44,52 @@ venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### Seçenek C — Doğrudan pip (hızlı ama karışık olabilir)
+### Seçenek C — Doğrudan pip
 
 ```bash
-pip install pandas numpy scikit-learn matplotlib seaborn openpyxl jupyter scipy
+pip install pandas numpy scikit-learn matplotlib seaborn missingno openpyxl jupyter scipy
 ```
 
-Açılan notebook'ta üst menüden:
+## 4. Notebook'ları sırayla çalıştır
+
+### 4.1 EDA (`notebooks/01_EDA.ipynb`)
+
+Keşifsel analiz — veri yapısı, eksik değerler, dağılımlar, korelasyonlar.
+
+```bash
+jupyter notebook notebooks/01_EDA.ipynb
+```
+
+**Kernel → Restart Kernel and Run All Cells** ile baştan çalıştır.
+
+### 4.2 Preprocessing (`notebooks/02_preprocessing.ipynb`)
+
+10 adımlı pipeline. Çıktı: `data/X_train_final.csv`, `X_test_final.csv`, `y_train_final.csv`, `y_test_final.csv`.
+
+```bash
+jupyter notebook notebooks/02_preprocessing.ipynb
+```
+
 **Kernel → Restart Kernel and Run All Cells**
 
-1-2 dakika sürer. Sonunda şunları görmelisin:
-- 8 modelin F1 skorları
-- Bir karşılaştırma grafiği
-- Yeni dosyalar: `sonuclar.csv`, `arabam_temiz.csv`, `model_karsilastirma.png`
+3-5 dakika sürer. Bittikten sonra `data/` klasöründe 4 final dosya oluşmuş olmalı:
+
+```
+data/X_train_final.csv  →  2739 × 74
+data/X_test_final.csv   →   685 × 74
+data/y_train_final.csv  →  2739 etiket
+data/y_test_final.csv   →   685 etiket
+```
+
+### 4.3 Baseline (`notebooks/03_baseline.ipynb`)
+
+Henüz oluşturulmadı — proje takvimine göre eklenecek.
 
 ## 5. Kendi algoritmanı optimize et
 
-Sana verilen algoritmanın hücresini bul (6.1, 6.2... gibi). O hücreye **GridSearchCV** ekle.
+Sana atanan algoritmayı `04_tuning.ipynb` (eklenecek) içinde optimize et. Hazır GridSearchCV kodları için → `docs/TUNING_REHBERI.md`.
 
-Her algoritma için hazır tuning kodunu `docs/TUNING_REHBERI.md` dosyasında bul.
+**Önemli:** Modelleme notebook'ların `data/X_train_final.csv` ve `data/X_test_final.csv` dosyalarından okumalı. Preprocessing'i tekrar yapma — herkes aynı işlenmiş veriyi kullanıyor (karşılaştırılabilirlik için).
 
 ## 6. Git kullanımı
 
@@ -76,24 +100,11 @@ Her algoritma için hazır tuning kodunu `docs/TUNING_REHBERI.md` dosyasında bu
 git checkout -b feature/knn-tuning
 
 # Notebook'ta değişiklik yap, kaydet
-# Sonra:
-git add PROJE_TEK_DOSYA.ipynb
+git add notebooks/04_tuning_knn.ipynb
 git commit -m "k-NN GridSearch eklendi, F1: 0.82"
 git push origin feature/knn-tuning
 ```
 
 GitHub'da Pull Request (PR) aç, lider onaylasın.
 
-## Sık sorulan sorular
 
-**S: Jupyter açılınca "No such file or directory" hatası alıyorum**
-C: Jupyter'ı `veri-madenciligi-proje` klasörünün İÇİNDEN başlat. Yani `cd veri-madenciligi-proje` yaptıktan sonra `jupyter notebook`.
-
-**S: Baseline skorlarım tabloyla aynı mı çıkmalı?**
-C: Evet, tam olarak aynı — `RANDOM_STATE=42` sağ olsun. Farklı çıkıyorsa kodu değiştirmişsindir.
-
-**S: Benim algoritma zaten yüksek skor aldı, tuning gerekli mi?**
-C: Evet. Proje isteri "optimizasyon" istiyor, raporda mutlaka GridSearch adımını göstermelisin.
-
-**S: Naive Bayes %32 çıktı, nasıl yükseltirim?**
-C: Çok yükseltemezsin — algoritma bu veriye uymuyor. Raporda "neden uymadı" analizi yap, tam not alırsın. Alternatif: `CategoricalNB` dene.
