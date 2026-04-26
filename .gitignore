@@ -17,6 +17,7 @@ __pycache__/
 venv/
 env/
 .venv/
+anaconda_projects/
 
 # Çıktılar (sadece final olanlar commit edilsin)
 outputs/*.log
