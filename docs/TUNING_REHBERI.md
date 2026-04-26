@@ -1,361 +1,234 @@
 # Hyperparameter Tuning Rehberi
 
-Her algoritma için hazır GridSearchCV kodu. Kendi notebook'una kopyala-yapıştır, çalıştır.
+> Bu rehber **hangi parametreleri** tune etmen gerektiğini söyler. **Değerleri kendin araştır** — sklearn dokümanı, ders slaytları, akademik makaleler kullan. Raporda "neden bu değerleri seçtim?" sorusuna cevabın olmalı.
+>
+> Genel kalıp:
+> ```python
+> param_grid = {
+>     'parametre_1': [...],   # ← Sen doldur, gerekçesini raporda anlat
+>     'parametre_2': [...],
+> }
+> grid = GridSearchCV(model, param_grid, cv=5, scoring='f1_macro', n_jobs=-1)
+> ```
 
 ---
 
-## 0. Veri Yükleme — Tüm tuning notebook'larının başına ekle
+## k-NN (`KNeighborsClassifier`)
 
-Preprocessing zaten yapıldı (`02_preprocessing.ipynb`). Final veriyi doğrudan yükle:
+**Algoritma:** Yeni veri için en yakın **k komşunun çoğunluk sınıfını** seçer.
 
-```python
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.metrics import (accuracy_score, precision_score, recall_score,
-                              f1_score, confusion_matrix, classification_report,
-                              ConfusionMatrixDisplay)
-from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
+### Tune edilebilir parametreler
 
-RANDOM_STATE = 42
+| Parametre | Ne yapar | Düşünce yolu |
+|---|---|---|
+| `n_neighbors` | Kaç komşuya bakılsın? | Küçük k → varyans yüksek (overfit), büyük k → bias yüksek. Tek sayılar tercih edilir (eşitlik kırmak için). |
+| `weights` | Komşuların oyu eşit mi? | `'uniform'` her komşu eşit oy, `'distance'` yakın komşu daha çok ağırlık. |
+| `metric` | Mesafe nasıl hesaplanır? | `'euclidean'` klasik, `'manhattan'` aykırı değerlere dayanıklı, `'minkowski'` p parametreli. |
 
-X_train = pd.read_csv('../data/X_train_final.csv')
-X_test  = pd.read_csv('../data/X_test_final.csv')
-y_train = pd.read_csv('../data/y_train_final.csv').iloc[:, 0]
-y_test  = pd.read_csv('../data/y_test_final.csv').iloc[:, 0]
-
-print(f'X_train: {X_train.shape}, X_test: {X_test.shape}')
-
-# Yardımcı: model değerlendirme
-def evaluate(model, X_train, X_test, y_train, y_test, name):
-    model.fit(X_train, y_train)
-    y_pred = model.predict(X_test)
-    print(f'\n=== {name} ===')
-    print(f'Accuracy : {accuracy_score(y_test, y_pred):.4f}')
-    print(f'F1 macro : {f1_score(y_test, y_pred, average="macro"):.4f}')
-    print(f'Precision: {precision_score(y_test, y_pred, average="macro"):.4f}')
-    print(f'Recall   : {recall_score(y_test, y_pred, average="macro"):.4f}')
-    print('\nClassification Report:')
-    print(classification_report(y_test, y_pred))
-    return model
-```
-
-> **Not:** Veri zaten scaled durumda (RobustScaler), encoding tamamlanmış (OHE + Target Encoding), feature engineering yapılmış (arac_yasi, km_per_yas, vb.). Tekrar yapma!
+**Notlar:**
+- Veri zaten scaled — mesafe hesabı dengeli çalışır.
+- Tek sayı k'ler dene (3, 5, 7 gibi).
 
 ---
 
-## k-NN
+## ID3 (`DecisionTreeClassifier(criterion='entropy')`)
 
-```python
-from sklearn.neighbors import KNeighborsClassifier
+**Algoritma:** Information Gain'e göre en bilgi verici özelliği seç, ona göre dalla. Entropy minimize edilir.
 
-param_grid = {
-    'n_neighbors': [3, 5, 7, 9, 11, 15, 21],
-    'weights': ['uniform', 'distance'],
-    'metric': ['euclidean', 'manhattan', 'minkowski'],
-}
+### Tune edilebilir parametreler
 
-grid = GridSearchCV(
-    KNeighborsClassifier(),
-    param_grid,
-    cv=5,
-    scoring='f1_macro',
-    n_jobs=-1,
-    verbose=1
-)
-grid.fit(X_train, y_train)
+| Parametre | Ne yapar | Düşünce yolu |
+|---|---|---|
+| `criterion` | Bölme kriteri | ID3 için **`'entropy'`** sabit, başka değer girme. |
+| `max_depth` | Ağacın maksimum derinliği | Küçük → underfit, büyük → overfit. `None` sınırsız. |
+| `min_samples_split` | Bir düğümü bölmek için min örnek sayısı | Büyük değer → daha az detay, daha genel ağaç. |
+| `min_samples_leaf` | Yaprak düğümde min örnek | Çok küçük → overfit. |
 
-print(f"En iyi parametreler: {grid.best_params_}")
-print(f"En iyi CV skoru    : {grid.best_score_:.4f}")
-
-best_knn = grid.best_estimator_
-evaluate(best_knn, X_train, X_test, y_train, y_test, 'k-NN (optimized)')
-```
-
-**Süre:** ~1-2 dakika.
+**Notlar:**
+- `random_state=RANDOM_STATE` her zaman ekle.
+- `max_depth=None` ile başlamak ne kadar derinleşeceğini gösterir, sonra sınırla.
 
 ---
 
-## ID3 (entropy-based karar ağacı)
+## C4.5 (`DecisionTreeClassifier(criterion='entropy', ccp_alpha=...)`)
 
-```python
-from sklearn.tree import DecisionTreeClassifier
+**Algoritma:** ID3'ün gelişmiş hali — entropy + **cost complexity pruning** (sonradan budama).
 
-param_grid = {
-    'criterion': ['entropy'],
-    'max_depth': [5, 10, 15, 20, 25, None],
-    'min_samples_split': [2, 5, 10, 20],
-    'min_samples_leaf': [1, 2, 5, 10],
-}
+### Tune edilebilir parametreler
 
-grid = GridSearchCV(
-    DecisionTreeClassifier(random_state=RANDOM_STATE),
-    param_grid,
-    cv=5,
-    scoring='f1_macro',
-    n_jobs=-1,
-    verbose=1
-)
-grid.fit(X_train, y_train)
+C4.5 ID3'ün tüm parametrelerine sahip + ek olarak:
 
-print(f"En iyi parametreler: {grid.best_params_}")
-best_id3 = grid.best_estimator_
-evaluate(best_id3, X_train, X_test, y_train, y_test, 'ID3 (optimized)')
-```
+| Parametre | Ne yapar | Düşünce yolu |
+|---|---|---|
+| `ccp_alpha` | Budama agresifliği | 0 → budama yok (= ID3), büyük değer → çok budama (basit ağaç). C4.5'in ayırt edici parametresi. |
 
-**Süre:** ~1 dakika.
+**Notlar:**
+- ID3 parametreleriyle (`max_depth`, `min_samples_split`, vb.) birlikte kullan.
+- `ccp_alpha`'yı ufak değerlerle dene (0.0, 0.001 gibi → çok küçük ondalıklar).
 
 ---
 
-## C4.5 (entropy + pruning)
+## CART (`DecisionTreeClassifier(criterion='gini')`)
 
-```python
-from sklearn.tree import DecisionTreeClassifier
+**Algoritma:** Gini impurity'e göre böler (entropy'ye matematiksel olarak benzer ama hesaplama farklı).
 
-param_grid = {
-    'criterion': ['entropy'],
-    'max_depth': [5, 8, 10, 15],
-    'min_samples_split': [5, 10, 20],
-    'min_samples_leaf': [2, 5, 10],
-    'ccp_alpha': [0.0, 0.001, 0.01, 0.05],  # Cost complexity pruning
-}
+### Tune edilebilir parametreler
 
-grid = GridSearchCV(
-    DecisionTreeClassifier(random_state=RANDOM_STATE),
-    param_grid,
-    cv=5,
-    scoring='f1_macro',
-    n_jobs=-1,
-    verbose=1
-)
-grid.fit(X_train, y_train)
-
-print(f"En iyi parametreler: {grid.best_params_}")
-best_c45 = grid.best_estimator_
-evaluate(best_c45, X_train, X_test, y_train, y_test, 'C4.5 (optimized)')
-```
-
-**Not:** `ccp_alpha` budama parametresi — C4.5'in ayırt edici özelliği.
+| Parametre | Ne yapar | Düşünce yolu |
+|---|---|---|
+| `criterion` | **`'gini'`** sabit (CART tanımı bu). |
+| `max_depth` | ID3 ile aynı |
+| `min_samples_split` | ID3 ile aynı |
+| `min_samples_leaf` | ID3 ile aynı |
+| `max_features` | Her bölmede kaç özelliğe bakılsın | `None` hepsine bakar, `'sqrt'` rastgele kök kadar. Random Forest mantığı. |
 
 ---
 
-## CART (gini-based)
+## Naive Bayes (`GaussianNB`)
 
-```python
-from sklearn.tree import DecisionTreeClassifier
+**Algoritma:** Bayes teoremi + özellikler arası bağımsızlık varsayımı. Her özellik Gaussian dağıldığını varsayar.
 
-param_grid = {
-    'criterion': ['gini'],
-    'max_depth': [5, 10, 15, 20, None],
-    'min_samples_split': [2, 5, 10, 20],
-    'min_samples_leaf': [1, 2, 5],
-    'max_features': [None, 'sqrt', 'log2'],
-}
+### Tune edilebilir parametreler
 
-grid = GridSearchCV(
-    DecisionTreeClassifier(random_state=RANDOM_STATE),
-    param_grid,
-    cv=5,
-    scoring='f1_macro',
-    n_jobs=-1,
-    verbose=1
-)
-grid.fit(X_train, y_train)
+| Parametre | Ne yapar | Düşünce yolu |
+|---|---|---|
+| `var_smoothing` | Varyansa eklenen küçük sayı (sıfıra bölünme önler) | Çok küçük değerler dene (1e-11, 1e-10, ...). Etkisi sınırlı. |
 
-best_cart = grid.best_estimator_
-evaluate(best_cart, X_train, X_test, y_train, y_test, 'CART (optimized)')
-```
+**Notlar:**
+- Naive Bayes'in az parametresi var → büyük iyileşme beklenmez.
+- Raporda **niye yetersiz** kaldığını anlat:
+  - Özellikler arasında bağımsızlık varsayımı (örn. Motor Hacmi ↔ Silindir Sayısı bağımsız değil)
+  - Scaled veride Gaussian varsayımı zayıf
+- Alternatif: `CategoricalNB` denenebilir (sadece kategorik özelliklerle).
 
 ---
 
-## Naive Bayes
+## Lojistik Regresyon (`LogisticRegression`)
 
-```python
-from sklearn.naive_bayes import GaussianNB
+**Algoritma:** Doğrusal sınır + softmax. Çok sınıflı için one-vs-rest veya multinomial.
 
-param_grid = {
-    'var_smoothing': [1e-11, 1e-10, 1e-9, 1e-8, 1e-7, 1e-6, 1e-5],
-}
+### Tune edilebilir parametreler
 
-grid = GridSearchCV(
-    GaussianNB(),
-    param_grid,
-    cv=5,
-    scoring='f1_macro',
-    n_jobs=-1,
-    verbose=1
-)
-grid.fit(X_train, y_train)
+| Parametre | Ne yapar | Düşünce yolu |
+|---|---|---|
+| `C` | Regülarizasyon **tersi** | Küçük C → güçlü regülarizasyon (basit model), büyük C → az regülarizasyon. |
+| `penalty` | Regülarizasyon tipi | `'l1'` seyrek katsayı (özellik seçimi), `'l2'` standart, `'elasticnet'` ikisinin karışımı. |
+| `solver` | Optimizer | `'liblinear'` küçük veri, `'saga'` büyük veri + l1. Penalty ile uyumlu olmalı. |
+| `max_iter` | Max iterasyon | Yakınsama uyarısı alırsan artır. |
 
-best_nb = grid.best_estimator_
-evaluate(best_nb, X_train, X_test, y_train, y_test, 'Naive Bayes (optimized)')
-```
-
-**Not:** Naive Bayes'in çok az parametresi var, büyük iyileşme beklenmez.
-Raporunda "bu veri için neden uygun değil" kısmını vurgula:
-- Feature'lar arasında bağımsızlık varsayımı geçerli değil (motor gücü ↔ motor hacmi gibi)
-- Sürekli değişkenler için Gaussian varsayımı zayıf
+**Notlar:**
+- `random_state=RANDOM_STATE` ekle.
+- Penalty + solver eşleşmesine dikkat (sklearn dokümanında uyumluluk tablosu var).
 
 ---
 
-## Lojistik Regresyon
+## K-Means (`KMeans`)
 
+**Algoritma:** **Kümeleme** algoritması — sınıflandırma değil. 4 küme oluştur, her kümeyi en sık sınıfa eşle.
+
+### Tune edilebilir parametreler
+
+| Parametre | Ne yapar | Düşünce yolu |
+|---|---|---|
+| `n_clusters` | Küme sayısı | 4 hedef sınıfımız var → 4 mantıklı, ama elbow & silhouette ile 2-8 arası dene. |
+| `init` | Başlangıç merkezleri | `'k-means++'` akıllı seçim (default), `'random'` rastgele. |
+| `n_init` | Kaç farklı başlangıçtan çalışsın | Yüksek → daha sağlam ama yavaş. |
+
+**Notlar:**
+- Cluster → label eşleştirmesi yapacaksın: her küme içinde en sık etiket o kümenin tahmini.
+- Düşük F1 skoru beklenir (kümeleme zaten classification için tasarlanmamış).
+- Raporda elbow + silhouette grafiklerini göster.
+
+### Cluster → label eşleştirme örneği
 ```python
-from sklearn.linear_model import LogisticRegression
-
-param_grid = {
-    'C': [0.01, 0.1, 1, 10, 100],
-    'penalty': ['l1', 'l2'],
-    'solver': ['liblinear', 'saga'],
-    'max_iter': [2000],
-}
-
-grid = GridSearchCV(
-    LogisticRegression(random_state=RANDOM_STATE),
-    param_grid,
-    cv=5,
-    scoring='f1_macro',
-    n_jobs=-1,
-    verbose=1
-)
-grid.fit(X_train, y_train)
-
-best_lr = grid.best_estimator_
-evaluate(best_lr, X_train, X_test, y_train, y_test, 'Lojistik Regresyon (optimized)')
-```
-
-**Süre:** ~3-5 dakika.
-
----
-
-## K-Means (kümelerle sınıflandırma)
-
-K-Means bir sınıflandırma algoritması değil, bu yüzden farklı bir yaklaşım:
-
-```python
-from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
-
-# Elbow method ile optimal küme sayısı
-inertias = []
-silhouette_scores = []
-k_values = [2, 3, 4, 5, 6, 7, 8]
-
-for k in k_values:
-    km = KMeans(n_clusters=k, random_state=RANDOM_STATE, n_init=10)
-    labels = km.fit_predict(X_train)
-    inertias.append(km.inertia_)
-    silhouette_scores.append(silhouette_score(X_train, labels))
-
-# Elbow grafiği
-fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-axes[0].plot(k_values, inertias, 'o-')
-axes[0].set_xlabel('Küme sayısı (k)')
-axes[0].set_ylabel('Inertia')
-axes[0].set_title('Elbow Method')
-
-axes[1].plot(k_values, silhouette_scores, 'o-')
-axes[1].set_xlabel('Küme sayısı (k)')
-axes[1].set_ylabel('Silhouette Score')
-axes[1].set_title('Silhouette Analysis')
-plt.tight_layout()
-plt.show()
-
-# En iyi k ile sınıflandırma
-best_k = 4  # Grafiğe göre seç
-km = KMeans(n_clusters=best_k, random_state=RANDOM_STATE, n_init=10)
+km = KMeans(n_clusters=4, random_state=RANDOM_STATE, n_init=10)
 train_clusters = km.fit_predict(X_train)
 
 cluster_to_label = {}
-for c in range(best_k):
+for c in range(4):
     mask = train_clusters == c
-    if mask.sum() > 0:
-        cluster_to_label[c] = y_train[mask].mode()[0]
+    cluster_to_label[c] = y_train[mask].mode()[0]
 
 test_clusters = km.predict(X_test)
-y_pred_km = [cluster_to_label[c] for c in test_clusters]
-
-print(f"Accuracy: {accuracy_score(y_test, y_pred_km):.4f}")
-print(f"F1 macro: {f1_score(y_test, y_pred_km, average='macro'):.4f}")
+y_pred_kmeans = [cluster_to_label[c] for c in test_clusters]
 ```
-
-**Raporda:** K-Means'ın düşük skoruna takılma. Rapor etmen gerekenler:
-- Unsupervised, sınıflandırma için özel tasarlanmamış
-- Elbow ve silhouette analizi yaptın
-- Cluster-based feature ekleyerek başka bir sınıflandırıcıya destek verilebilir
 
 ---
 
-## Random Forest
+## Random Forest (`RandomForestClassifier`)
 
+**Algoritma:** Birçok karar ağacının oy birliği. Bagging + rastgele özellik altkümesi.
+
+### Tune edilebilir parametreler
+
+| Parametre | Ne yapar | Düşünce yolu |
+|---|---|---|
+| `n_estimators` | Ağaç sayısı | Çok ağaç → daha kararlı ama yavaş. 100 standart başlangıç. |
+| `max_depth` | Ağaç derinliği | Çok büyük → overfit, çok küçük → underfit. |
+| `max_features` | Her bölmede kaç özelliğe bakılsın | `'sqrt'` standart, `'log2'` daha agresif. |
+| `min_samples_split` | DT ile aynı |
+| `min_samples_leaf` | DT ile aynı |
+
+**Notlar:**
+- Çok parametre var → **`RandomizedSearchCV`** tercih edilir (`GridSearchCV` çok yavaş).
+- `n_jobs=-1` ile paralel çalışır.
+- Feature importance grafiği zorunlu (raporda).
+
+### RandomizedSearchCV kullanım kalıbı
 ```python
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import RandomizedSearchCV
 
-param_grid = {
-    'n_estimators': [100, 200, 500],
-    'max_depth': [10, 20, 30, None],
-    'max_features': ['sqrt', 'log2'],
-    'min_samples_split': [2, 5, 10],
-    'min_samples_leaf': [1, 2, 4],
-}
-
-# Çok kombinasyon var — RandomizedSearchCV kullan
 random_search = RandomizedSearchCV(
     RandomForestClassifier(random_state=RANDOM_STATE, n_jobs=-1),
-    param_grid,
-    n_iter=30,  # 30 rastgele kombinasyon dene
+    param_distributions=param_grid,
+    n_iter=30,            # Kaç rastgele kombinasyon dene
     cv=5,
     scoring='f1_macro',
+    random_state=RANDOM_STATE,
     n_jobs=-1,
-    verbose=1,
-    random_state=RANDOM_STATE
 )
-random_search.fit(X_train, y_train)
-
-best_rf = random_search.best_estimator_
-evaluate(best_rf, X_train, X_test, y_train, y_test, 'Random Forest (optimized)')
-```
-
-**Süre:** ~5-10 dakika. Bonus: feature importance'ı gör:
-
-```python
-feature_importance = pd.DataFrame({
-    'feature': X_train.columns,
-    'importance': best_rf.feature_importances_
-}).sort_values('importance', ascending=False).head(15)
-
-plt.figure(figsize=(10, 6))
-sns.barplot(data=feature_importance, y='feature', x='importance', palette='viridis')
-plt.title('En önemli 15 özellik')
-plt.tight_layout()
-plt.show()
 ```
 
 ---
 
-## Confusion Matrix — herkes için zorunlu
+## Genel İpuçları
 
-Raporunda hangi sınıfları karıştırdığını göstermek için:
+1. **Önce küçük grid ile başla** (her parametre 2-3 değer) → çalıştığını gör → genişlet
+2. **`grid.cv_results_`'a bak** → hangi parametre kombinasyonu fark yaratıyor?
+3. **`grid.best_params_`'ı raporda yorumla** — niye optimal? Algoritma teorisinden açıkla
+4. **Yakınsama uyarısı** alırsan `max_iter` veya `tol` parametresini düzenle
+5. **`verbose=1`** ekle → progress görürsün, ne kadar sürdüğünü anlarsın
+6. **Bilinmeyen parametreler** için: `from sklearn.X import Y; help(Y)` veya sklearn dokümanına bak
 
+## Yardımcı Kaynaklar
+
+### sklearn API dokümanı (her algoritmanın direkt linki)
+
+Her sayfada **Parameters** bölümünden geçerli değerleri ve varsayılanları gör. **Examples** bölümünde çalışır kod var.
+
+| Algoritma | Link |
+|---|---|
+| k-NN | https://scikit-learn.org/stable/modules/generated/sklearn.neighbors.KNeighborsClassifier.html |
+| Karar Ağaçları (ID3 / C4.5 / CART) | https://scikit-learn.org/stable/modules/generated/sklearn.tree.DecisionTreeClassifier.html |
+| Naive Bayes (Gaussian) | https://scikit-learn.org/stable/modules/generated/sklearn.naive_bayes.GaussianNB.html |
+| Naive Bayes (Categorical — alternatif) | https://scikit-learn.org/stable/modules/generated/sklearn.naive_bayes.CategoricalNB.html |
+| Lojistik Regresyon | https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.LogisticRegression.html |
+| K-Means | https://scikit-learn.org/stable/modules/generated/sklearn.cluster.KMeans.html |
+| Random Forest | https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.RandomForestClassifier.html |
+| GridSearchCV | https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.GridSearchCV.html |
+| RandomizedSearchCV | https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.RandomizedSearchCV.html |
+
+### Notebook içinden alternatif
+
+İnternet açmadan parametre listesi:
 ```python
-sinif_sirasi = ['Ekonomik', 'Orta', 'Yüksek', 'Premium']
-
-cm = confusion_matrix(y_test, best_model.predict(X_test), labels=sinif_sirasi)
-disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=sinif_sirasi)
-fig, ax = plt.subplots(figsize=(8, 6))
-disp.plot(cmap='Blues', ax=ax)
-plt.title('Confusion Matrix — [Senin Algoritman]')
-plt.tight_layout()
-plt.savefig('../outputs/confusion_matrix_[algoritma].png', dpi=150)
-plt.show()
+from sklearn.neighbors import KNeighborsClassifier
+help(KNeighborsClassifier)        # Terminale dökümanı bas
+KNeighborsClassifier?             # IPython/Jupyter kısayolu (aynı şey)
 ```
 
----
+### Diğer kaynaklar
 
-## Notlar
-
-- Tüm tuning notebook'larında `random_state=42` kullan — sonuçların karşılaştırılabilir olması için.
-- `cv=5` (5-fold cross-validation) standart — değiştirme.
-- Veri zaten preprocessed; ek scaling, encoding, FE yapma.
-- Pipeline'ı bozmaman önemli: tüm üyeler aynı `X_train_final.csv` ile çalışıyor.
+- Ders slaytları 
+- "Hands-On ML" — Aurélien Géron (üniversite kütüphanesinde olabilir)
+- Stack Overflow: spesifik hata için arama yap
