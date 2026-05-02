@@ -52,7 +52,7 @@ Tüm istatistikler (medyanlar, modlar, scaler parametreleri, target encoding de�
 | ? | ID3 | — |
 | ? | C4.5 | — |
 | ? | Lojistik Regresyon | — |
-| ? | k-NN | — |
+| ? | k-NN | 0.827 |
 | ? | Naive Bayes | — |
 | ? | K-Means | — |
 
