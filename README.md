@@ -60,14 +60,14 @@ Tüm istatistikler (medyanlar, modlar, scaler parametreleri, target encoding de�
 
 | # | Üye | Algoritma |
 |---|-----|-----------|
-| 1 | [İsim] — Lider | Random Forest |
-| 2 | [İsim] | CART |
-| 3 | [İsim] | ID3 |
+| 1 | [İsim] | Random Forest |
+| 2 | [Yusuf Ziya Kadir Batmaz] | CART |
+| 3 | [Muhammed Emin Pehlivan] | ID3 |
 | 4 | [İsim] | Lojistik Regresyon |
 | 5 | [İsim] | C4.5 |
-| 6 | [İsim] | k-NN |
+| 6 | [Mustafa Batın Güven] | k-NN |
 | 7 | [İsim] | K-Means |
-| 8 | [İsim] | Naive Bayes |
+| 8 | [Halit Doğan] | Naive Bayes |
 
 ## 📁 Klasör Yapısı
 
